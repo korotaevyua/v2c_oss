@@ -3,8 +3,11 @@
 An open-source converter from a **physical (post-route) Verilog netlist** to
 **CDL**, for use as a standalone step in a staged LVS flow.
 
-> Status: **M0 — skeleton.** Layout, scope and test plan are in place; the
-> conversion itself is not implemented yet. See [docs/roadmap.md](docs/roadmap.md).
+> Status: **M1 — walking skeleton.** Flat and hierarchical netlists of scalar
+> nets convert to Calibre CDL, with pin order taken from the library. Buses,
+> escaped identifiers, constants, `supply0`/`supply1` and unconnected pins are
+> rejected with a located "not supported yet" error for now. See
+> [docs/roadmap.md](docs/roadmap.md).
 
 ## What it is for
 
@@ -20,14 +23,20 @@ The input is the netlist written at the end of the P&R flow, with power and
 ground already present. Supply inference, RTL and SystemVerilog are explicitly
 out of scope — see [docs/scope.md](docs/scope.md).
 
-## Intended use
+## Usage
 
 ```
 v2c convert design.v -s stdcells.cdl -s macros.cdl -o design.cdl
 ```
 
 Verilog connections are named, CDL connections are positional, so the library
-CDL is not optional: it is where the pin order comes from.
+CDL is not optional: it is where the pin order comes from. Libraries are
+searched in the order given. The output references library cells without
+copying them, so give the comparator the library CDL alongside `design.cdl`.
+
+The top module is inferred when exactly one module is not instantiated by any
+other; otherwise name it with `--top`. On any error nothing is written, and the
+message carries `file:line:column`.
 
 Output flavors (`--flavor calibre|netgen|klayout`) cover the lexical
 differences between consumers — bus delimiters, escaping, `*.PININFO`.

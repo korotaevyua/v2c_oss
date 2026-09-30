@@ -39,3 +39,7 @@ class LibraryError(V2CError):
 
 class ResolveError(V2CError):
     """Netlist and library disagree — missing cell, unknown pin, collision."""
+
+
+class OutputError(V2CError):
+    """A resolved name or construct cannot be expressed in the output flavor."""

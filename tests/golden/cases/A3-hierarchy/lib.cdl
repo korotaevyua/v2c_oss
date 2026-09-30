@@ -1,0 +1,15 @@
+* Synthetic cell library for golden tests. Not from any PDK.
+
+.SUBCKT INV A Y VDD VSS
+*.PININFO A:I Y:O VDD:P VSS:G
+MP0 Y A VDD VDD pch W=1.0u L=0.1u
+MN0 Y A VSS VSS nch W=0.5u L=0.1u
+.ENDS INV
+
+.SUBCKT NAND2 A B Y VDD VSS
+*.PININFO A:I B:I Y:O VDD:P VSS:G
+MP0 Y A VDD VDD pch W=1.0u L=0.1u
+MP1 Y B VDD VDD pch W=1.0u L=0.1u
+MN0 Y A n0 VSS nch W=1.0u L=0.1u
+MN1 n0 B VSS VSS nch W=1.0u L=0.1u
+.ENDS NAND2

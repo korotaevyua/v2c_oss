@@ -1,7 +1,4 @@
-"""Smoke tests: the package imports and the CLI describes itself.
-
-Real coverage arrives with M1; see docs/test-plan.md.
-"""
+"""Smoke tests: the package imports and the CLI describes itself."""
 
 import v2c
 from v2c.cdl.flavors import FLAVORS

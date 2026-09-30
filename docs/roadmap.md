@@ -2,11 +2,11 @@
 
 Milestones, not dates.
 
-## M0 — skeleton (this commit)
+## M0 — skeleton
 
 Repository layout, scope, architecture, test plan. No working conversion.
 
-## M1 — walking skeleton
+## M1 — walking skeleton (this commit)
 
 Convert the simplest real thing end to end: a flat module, a handful of standard
 cells, one library CDL, Calibre flavor only.
@@ -20,9 +20,16 @@ cells, one library CDL, Calibre flavor only.
 
 Done when a small design converts and Calibre accepts the result.
 
+The parser accepts the whole P&R subset; constructs that still need a policy
+are rejected by the resolver or writer with a located "not supported yet"
+error, never passed through: buses, escaped identifiers, constants,
+concatenations, `supply0`/`supply1`, unconnected pins, `--on-missing=stub`,
+and every flavor but `calibre`.
+
 ## M2 — the things that break first
 
 - escaped identifiers and bus handling (C group)
+- unconnected pins and constants (B2, F1, F4, F5), supply declarations (D2)
 - missing cells: error and stub modes (B5–B8, G group)
 - physical-only cells (E group)
 - diagnostics with file/line/column everywhere (H group)
