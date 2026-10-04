@@ -3,6 +3,8 @@
 * Top:    top
 * Flavor: calibre
 
+.INCLUDE "lib.cdl"
+
 .SUBCKT top a y VDD VSS
 *.PININFO a:I y:O VDD:B VSS:B
 Xu1 a n1 VDD VSS INV

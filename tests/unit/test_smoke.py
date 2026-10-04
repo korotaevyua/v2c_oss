@@ -2,7 +2,7 @@
 
 import v2c
 from v2c.cdl.flavors import FLAVORS
-from v2c.cli import build_parser
+from v2c.cli import Library, build_parser
 
 
 def test_version_present():
@@ -18,6 +18,16 @@ def test_cli_parses_convert():
         ["convert", "d.v", "-s", "lib.cdl", "-o", "d.cdl"]
     )
     assert args.command == "convert"
-    assert args.spice == ["lib.cdl"]
+    assert args.libraries == [Library("lib.cdl", include=True)]
     assert args.flavor == "calibre"
     assert args.on_missing == "error"
+
+
+def test_libraries_keep_command_line_order():
+    args = build_parser().parse_args(
+        ["convert", "d.v", "-lsp", "a.cdl", "-s", "b.cdl", "-lsp", "c.cdl", "-o", "d.cdl"]
+    )
+    assert args.libraries == [
+        Library("a.cdl", include=False), Library("b.cdl", include=True),
+        Library("c.cdl", include=False),
+    ]

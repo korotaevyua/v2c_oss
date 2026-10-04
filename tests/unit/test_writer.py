@@ -17,9 +17,9 @@ def design(*instances: ResolvedInstance, pins=("a", "y")) -> ResolvedDesign:
     return ResolvedDesign("top", [module])
 
 
-def write(d: ResolvedDesign, flavor=CALIBRE, source=None) -> str:
+def write(d: ResolvedDesign, flavor=CALIBRE, source=None, includes=()) -> str:
     out = io.StringIO()
-    write_cdl(d, flavor, out, source=source)
+    write_cdl(d, flavor, out, source=source, includes=includes)
     return out.getvalue()
 
 
@@ -37,6 +37,11 @@ def test_output_shape():
         "Xu1 a y INV\n"
         ".ENDS top\n"
     )
+
+
+def test_includes_come_before_the_first_subckt():
+    text = write(design(), includes=["all.cdl", "/pdk/macros.cdl"])
+    assert '\n\n.INCLUDE "all.cdl"\n.INCLUDE "/pdk/macros.cdl"\n\n.SUBCKT top' in text
 
 
 def test_long_statements_wrap_with_continuation_lines():

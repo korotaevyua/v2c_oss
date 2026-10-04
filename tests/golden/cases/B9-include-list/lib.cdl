@@ -1,0 +1,3 @@
+* Library list: only includes, the way a flow collects its CDLs in one file.
+.INCLUDE "cells/stdcells.cdl"
+.include 'cells/macros.cdl'

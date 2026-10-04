@@ -40,6 +40,8 @@ The core of the tool. Most valuable tests in the suite.
 | B6 | cell missing from library, `--on-missing=stub` | stub emitted, pin order self-consistent |
 | B7 | library defines the same cell twice with different pin order | conflict detected, not last-wins |
 | B8 | two libraries supplied, cell in the second | search order respected |
+| B9 | `-s` library that only `.INCLUDE`s other files | cells found through includes; output includes the list file only |
+| B10 | library given with `-lsp` | used for pin order, not `.INCLUDE`d |
 
 ## C. Names and nets
 

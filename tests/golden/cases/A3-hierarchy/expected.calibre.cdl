@@ -3,6 +3,8 @@
 * Top:    top
 * Flavor: calibre
 
+.INCLUDE "lib.cdl"
+
 .SUBCKT and2 a b y VDD VSS
 *.PININFO a:I b:I y:O VDD:B VSS:B
 Xg0 a b n VDD VSS NAND2

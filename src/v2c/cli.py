@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import NamedTuple
 
 from .cdl.flavors import FLAVORS
 from .cdl.libreader import read_library
@@ -21,16 +22,27 @@ from .verilog.parser import parse_file
 _SUPPORTED_FLAVORS = {"calibre"}
 
 
+class Library(NamedTuple):
+    path: str
+    include: bool  # written as .INCLUDE in the output
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="v2c", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
 
     conv = sub.add_parser("convert", help="physical Verilog netlist -> CDL")
     conv.add_argument("netlist", help="physical (post-route) Verilog netlist")
-    conv.add_argument("-s", "--spice", action="append", default=[],
+    # -s and -lsp share one list, so libraries are searched in command-line order.
+    conv.add_argument("-s", "--spice", dest="libraries", action="append", default=[],
+                      type=lambda path: Library(path, include=True), metavar="FILE",
+                      help="library CDL/SPICE: read for .SUBCKT pin order and "
+                           ".INCLUDEd in the output (repeatable)")
+    conv.add_argument("-lsp", "--pin-order-only", dest="libraries", action="append",
+                      default=[], type=lambda path: Library(path, include=False),
                       metavar="FILE",
-                      help="library CDL/SPICE providing .SUBCKT pin order "
-                           "(repeatable; searched in order)")
+                      help="library read for pin order only, not .INCLUDEd, "
+                           "as v2lvs -lsp (repeatable)")
     conv.add_argument("-o", "--output", required=True)
     conv.add_argument("--top", help="top module (default: inferred)")
     conv.add_argument("--flavor", choices=sorted(FLAVORS), default="calibre")
@@ -65,15 +77,16 @@ def convert(args: argparse.Namespace) -> None:
     flavor = FLAVORS[args.flavor]
 
     design = parse_file(args.netlist)
-    library = read_library(args.spice)
+    library = read_library([lib.path for lib in args.libraries])
     resolved = resolve(design, library, top=args.top, on_missing=args.on_missing)
+    includes = [lib.path for lib in args.libraries if lib.include]
 
     # Write next to the target and rename, so a failure never leaves a
     # truncated file that looks like a result.
     tmp = f"{args.output}.tmp"
     try:
         with open(tmp, "w", encoding="utf-8", newline="\n") as out:
-            write_cdl(resolved, flavor, out, source=args.netlist)
+            write_cdl(resolved, flavor, out, source=args.netlist, includes=includes)
         os.replace(tmp, args.output)
     finally:
         if os.path.exists(tmp):

@@ -7,5 +7,6 @@
 
 .SUBCKT top a y VDD VSS
 *.PININFO a:I y:O VDD:B VSS:B
-Xu0 a y VDD VSS INV
+Xu_inv a a_n VDD VSS INV
+Xu_macro a a a_n y VDD VSS HARDMACRO
 .ENDS top

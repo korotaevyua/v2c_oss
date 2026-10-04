@@ -12,11 +12,12 @@ Convert the simplest real thing end to end: a flat module, a handful of standard
 cells, one library CDL, Calibre flavor only.
 
 - Verilog lexer + parser for the P&R subset
-- `.SUBCKT` header scanner
+- `.SUBCKT` header scanner, following `.INCLUDE`
+- `-s` libraries `.INCLUDE`d in the output, `-lsp` for pin order only (as v2lvs)
 - pin-order resolution
 - CDL writer
 - CLI: `v2c convert design.v -s lib.cdl -o design.cdl`
-- golden cases A1–A4, B1
+- golden cases A1–A4, B1, B9, B10
 
 Done when a small design converts and Calibre accepts the result.
 

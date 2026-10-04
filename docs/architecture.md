@@ -61,7 +61,8 @@ what `v2lvs -s` does and there is no way around it.
 `cdl.libreader` therefore scans `.SUBCKT` headers only — it does not parse
 device statements or build a circuit model. It needs the cell name, the ordered
 pin list, and, where `*.PININFO` is present, pin directions. Bodies are skipped.
-This keeps it fast on multi-megabyte library files.
+This keeps it fast on multi-megabyte library files. `.INCLUDE` statements are
+followed, so one file listing every library CDL can stand for all of them.
 
 ## Missing cells
 

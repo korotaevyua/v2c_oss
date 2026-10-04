@@ -1,0 +1,6 @@
+* Synthetic hard macro for golden tests. Not from any PDK.
+
+.SUBCKT HARDMACRO CLK EN DI DO VDD VSS
+*.PININFO CLK:I EN:I DI:I DO:O VDD:P VSS:G
+* Body omitted: the converter reads headers only.
+.ENDS HARDMACRO

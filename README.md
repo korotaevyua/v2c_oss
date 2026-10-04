@@ -30,9 +30,28 @@ v2c convert design.v -s stdcells.cdl -s macros.cdl -o design.cdl
 ```
 
 Verilog connections are named, CDL connections are positional, so the library
-CDL is not optional: it is where the pin order comes from. Libraries are
-searched in the order given. The output references library cells without
-copying them, so give the comparator the library CDL alongside `design.cdl`.
+CDL is not optional: it is where the pin order comes from.
+
+- `-s FILE` is read for pin order and written into the output as
+  `.INCLUDE "FILE"`, as v2lvs does. The path is written exactly as given, so
+  pass an absolute one if the comparator runs from another directory.
+- `-lsp FILE` is read for pin order only and not included, as v2lvs `-lsp` —
+  for libraries the rule deck already pulls in.
+- `.INCLUDE` lines inside a library are followed, so a single file listing all
+  CDLs works:
+
+  ```
+  * all.cdl
+  .INCLUDE "/pdk/stdcells.cdl"
+  .INCLUDE "/pdk/macros.cdl"
+  ```
+
+  `v2c convert design.v -s all.cdl -o design.cdl` then reads both, and the
+  output contains just `.INCLUDE "all.cdl"`.
+
+Libraries are searched in command-line order; the first that defines a cell
+wins. Within one library (a file and everything it includes), a cell defined
+twice with different pins is an error.
 
 The top module is inferred when exactly one module is not instantiated by any
 other; otherwise name it with `--top`. On any error nothing is written, and the

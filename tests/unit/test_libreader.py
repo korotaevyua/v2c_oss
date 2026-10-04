@@ -69,6 +69,71 @@ def test_libraries_are_searched_in_order(tmp_path):
     assert library.get("NAND2").pins == ["A", "B", "Y"]
 
 
+def test_includes_are_followed_relative_to_the_including_file(tmp_path, monkeypatch):
+    (tmp_path / "pdk" / "cells").mkdir(parents=True)
+    (tmp_path / "pdk" / "all.cdl").write_text(
+        '.INCLUDE "cells/std.cdl"\n.inc cells/macro.cdl\n'
+        f".include '{tmp_path / 'abs.cdl'}'\n"
+    )
+    (tmp_path / "pdk" / "cells" / "std.cdl").write_text(".SUBCKT INV A Y\n.ENDS\n")
+    (tmp_path / "pdk" / "cells" / "macro.cdl").write_text(".SUBCKT RAM CK D Q\n.ENDS\n")
+    (tmp_path / "abs.cdl").write_text(".SUBCKT TAP VDD VSS\n.ENDS\n")
+    monkeypatch.chdir(tmp_path)
+
+    library = read_library(["pdk/all.cdl"])
+
+    assert {name: c.pins for name, c in library.cells.items()} == {
+        "INV": ["A", "Y"], "RAM": ["CK", "D", "Q"], "TAP": ["VDD", "VSS"],
+    }
+    assert str(library.get("INV").location) == "pdk/cells/std.cdl:1"
+
+
+def test_conflict_between_included_files_is_one_library(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "all.cdl").write_text('.INCLUDE "a.cdl"\n.INCLUDE "b.cdl"\n')
+    (tmp_path / "a.cdl").write_text(".SUBCKT INV A Y\n.ENDS\n")
+    (tmp_path / "b.cdl").write_text(".SUBCKT INV Y A\n.ENDS\n")
+    with pytest.raises(LibraryError) as exc:
+        read_library(["all.cdl"])
+    assert "first definition at a.cdl:1" in exc.value.message
+    assert str(exc.value.location) == "b.cdl:1"
+
+
+@pytest.mark.parametrize(
+    "files, message",
+    [
+        ({"all.cdl": '.INCLUDE "gone.cdl"\n'},
+         "cannot read included file 'gone.cdl': No such file or directory"),
+        ({"all.cdl": ".INCLUDE\n"}, ".INCLUDE without a file name"),
+        ({"all.cdl": '.INCLUDE "b.cdl"\n', "b.cdl": '\n.INCLUDE "all.cdl"\n'},
+         "recursive .INCLUDE of 'all.cdl'"),
+    ],
+)
+def test_include_errors(tmp_path, monkeypatch, files, message):
+    monkeypatch.chdir(tmp_path)
+    for name, text in files.items():
+        (tmp_path / name).write_text(text)
+    with pytest.raises(LibraryError) as exc:
+        read_library(["all.cdl"])
+    assert message in exc.value.message
+    assert exc.value.location is not None
+
+
+def test_relative_include_found_in_two_places_is_ambiguous(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "all.cdl").write_text('.INCLUDE "std.cdl"\n')
+    (tmp_path / "lib" / "std.cdl").write_text(".SUBCKT INV A Y\n.ENDS\n")
+    (tmp_path / "std.cdl").write_text(".SUBCKT INV Y A\n.ENDS\n")
+    with pytest.raises(LibraryError) as exc:
+        read_library(["lib/all.cdl"])
+    assert exc.value.message == (
+        ".INCLUDE 'std.cdl' is ambiguous: both lib/std.cdl (next to the including file) "
+        "and std.cdl (in the working directory) exist; use an absolute path"
+    )
+    assert str(exc.value.location) == "lib/all.cdl:1"
+
+
 def test_file_without_subckts_is_rejected(tmp_path):
     path = tmp_path / "not_a_library.v"
     path.write_text("module top; endmodule\n")
