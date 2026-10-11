@@ -23,6 +23,26 @@ The input is the netlist written at the end of the P&R flow, with power and
 ground already present. Supply inference, RTL and SystemVerilog are explicitly
 out of scope — see [docs/scope.md](docs/scope.md).
 
+## Running it
+
+Python 3.8 or newer; no dependencies, nothing to install. Point `PYTHONPATH` at
+`src/` of a checkout and run the package with `-m`:
+
+```
+git clone https://github.com/korotaevyua/v2c_oss.git
+env PYTHONPATH=/path/to/v2c_oss/src python3 -m v2c convert design.v -s all.cdl -o design.cdl
+```
+
+`env` makes the line work in csh/tcsh as well as in sh/bash. `python3 v2c ...`
+does not work: `v2c` is a package, not a script file. If you can install
+packages, `pip install --user /path/to/v2c_oss` gives a plain `v2c` command
+instead.
+
+On a real post-route netlist today, expect the run to stop at the first bus,
+unconnected pin (`.QN()`) or tie constant (`1'b0`) with a "not supported yet"
+error and its `file:line:column`: those arrive in M2. Nothing is written in
+that case, so it is safe to try.
+
 ## Usage
 
 ```

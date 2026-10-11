@@ -7,7 +7,7 @@ name = "v2c"
 version = "0.0.0"
 description = "Physical Verilog netlist to CDL converter for staged LVS"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
 dependencies = []
 

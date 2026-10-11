@@ -1,5 +1,7 @@
 """Golden cases: netlist + library in, expected CDL out. See README.md here."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest

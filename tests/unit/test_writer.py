@@ -52,7 +52,7 @@ def test_long_statements_wrap_with_continuation_lines():
     assert lines[start + 1].startswith("+ net_009 ")
     assert lines[start + 2].endswith(" net_019 BIG")
     assert all(len(line) <= 80 for line in lines)
-    joined = " ".join(line.removeprefix("+ ") for line in lines[start:start + 3])
+    joined = " ".join(line.lstrip("+ ") for line in lines[start:start + 3])
     assert joined.split() == ["Xu1", *nets, "BIG"]
 
 

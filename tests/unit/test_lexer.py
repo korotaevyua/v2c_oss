@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 
 from v2c.errors import Location, ParseError

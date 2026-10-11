@@ -11,6 +11,7 @@ order of the target cell).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Union
 
 from .errors import Location
 
@@ -77,7 +78,7 @@ class Concat:
         return "{" + ", ".join(str(p) for p in self.parts) + "}"
 
 
-Expr = NetRef | Const | Concat
+Expr = Union[NetRef, Const, Concat]  # not `|`: evaluated at runtime, and 3.8 is supported
 
 
 @dataclass
