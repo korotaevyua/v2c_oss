@@ -9,6 +9,7 @@ Anything outside it is a ParseError with a location, never a silent skip.
     item        := direction [ 'wire' ] [ range ] id { ',' id } ';'
                  | ( 'wire' | 'supply0' | 'supply1' ) [ range ] id { ',' id } ';'
                  | id id '(' [ connection { ',' connection } ] ')' ';'
+                 | 'assign' expr '=' expr { ',' expr '=' expr } ';'
     direction   := 'input' | 'output' | 'inout'
     range       := '[' number ':' number ']'
     connection  := '.' id '(' [ expr ] ')'
@@ -24,7 +25,19 @@ question, answered in resolve.py.
 from __future__ import annotations
 
 from ..errors import Location, ParseError
-from ..model import Concat, Connection, Const, Design, Expr, Instance, Module, Net, NetRef, Port
+from ..model import (
+    Assign,
+    Concat,
+    Connection,
+    Const,
+    Design,
+    Expr,
+    Instance,
+    Module,
+    Net,
+    NetRef,
+    Port,
+)
 from .lexer import Token, tokenize
 
 _DIRECTIONS = {"input", "output", "inout"}
@@ -38,10 +51,7 @@ _OUT_OF_SCOPE = {
     "and", "nand", "or", "nor", "xor", "xnor", "buf", "not", "bufif0", "bufif1",
     "notif0", "notif1", "pullup", "pulldown",
 }
-# Part of the P&R subset, but not handled yet (see docs/test-plan.md, F3).
-_NOT_YET = {"assign"}
-
-_KEYWORDS = {"module", "endmodule"} | _DIRECTIONS | _NET_KINDS | _OUT_OF_SCOPE | _NOT_YET
+_KEYWORDS = {"module", "endmodule", "assign"} | _DIRECTIONS | _NET_KINDS | _OUT_OF_SCOPE
 
 
 def parse_file(path: str) -> Design:
@@ -154,8 +164,8 @@ class _Parser:
                     f"'{tok.text}' is not supported: only structural netlists are "
                     f"accepted (see docs/scope.md)"
                 )
-            elif tok.text in _NOT_YET:
-                raise self._error(f"'{tok.text}' statements are not supported yet")
+            elif tok.text == "assign":
+                self._assign(module)
             else:
                 module.instances.append(self._instance())
         self._advance()  # 'endmodule'
@@ -242,6 +252,18 @@ class _Parser:
                 lsb=lsb,
                 location=self._loc(tok),
             )
+
+    def _assign(self, module: Module) -> None:
+        self._advance()  # 'assign'
+        while True:
+            location = self._loc()
+            lhs = self._expr()
+            self._expect_sym("=")
+            module.assigns.append(Assign(lhs, self._expr(), location))
+            if not self._at_sym(","):
+                break
+            self._advance()
+        self._expect_sym(";")
 
     def _instance(self) -> Instance:
         cell_tok = self._expect_id("a cell name")

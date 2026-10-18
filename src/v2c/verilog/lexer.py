@@ -10,7 +10,7 @@ Token kinds:
             terminating whitespace, so ``\\a/b[3] `` becomes ``\\a/b[3]``
     number  unsized decimal, e.g. ``3``
     based   based literal, e.g. ``1'b0``, ``4'hF``
-    sym     one of ``( ) [ ] { } ; : , .``
+    sym     one of ``( ) [ ] { } ; : , . =``
     eof     end of input
 
 Comments and whitespace are dropped. Of the compiler directives, only the ones
@@ -43,7 +43,7 @@ _TOKEN_RE = re.compile(
     | (?P<based>[0-9]*'[sS]?[bBoOdDhH][0-9a-fA-FxXzZ?_]+)
     | (?P<number>[0-9]+)
     | (?P<directive>`[A-Za-z_][A-Za-z0-9_$]*)
-    | (?P<sym>[()\[\]{};:,.])
+    | (?P<sym>[()\[\]{};:,.=])
     """,
     re.VERBOSE | re.DOTALL,
 )

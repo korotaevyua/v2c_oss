@@ -13,6 +13,11 @@ every pin connected. Buses, constants, concatenations, supply declarations and
 unconnected pins are reported as not supported yet, with their location, until
 the milestones that give them a policy (docs/roadmap.md). Nets used without a
 declaration are implicit wires, as in Verilog.
+
+`assign a = b;` between scalar nets makes them one net (docs/test-plan.md, F3).
+The merged net takes the port's name if one of them is a port, otherwise the
+left-hand side's. Two ports on one net cannot be written as a .SUBCKT pin list,
+so that case is not supported yet.
 """
 
 from __future__ import annotations
@@ -123,6 +128,7 @@ def _resolve_module(
         if net.is_supply:
             _not_yet(f"supply{net.supply_value} net '{net.name}'", net.location)
 
+    merged = _merge_assigns(module)
     resolved = ResolvedModule(
         module.name,
         pins=[p.name for p in module.ports],
@@ -134,9 +140,38 @@ def _resolve_module(
         if pins is None:
             missing.setdefault(inst.cell, inst.location)
             continue
-        nets = _order_connections(inst, pins, defined_at)
+        nets = [merged.get(net, net) for net in _order_connections(inst, pins, defined_at)]
         resolved.instances.append(ResolvedInstance(inst.name, inst.cell, nets, inst.location))
     return resolved
+
+
+def _merge_assigns(module: Module) -> dict[str, str]:
+    """Net name -> the name of the net it was merged into by assign statements."""
+    ports = {p.name for p in module.ports}
+    parent: dict[str, str] = {}
+
+    def find(name: str) -> str:
+        while name in parent:
+            name = parent[name]
+        return name
+
+    for assign in module.assigns:
+        what = f"assign '{assign.lhs} = {assign.rhs}'"
+        for side in (assign.lhs, assign.rhs):
+            if not isinstance(side, NetRef):
+                _not_yet(f"{what} with a constant or concatenation", assign.location)
+            if side.msb is not None:
+                _not_yet(f"{what} with a bus select", assign.location)
+        keep, drop = find(assign.lhs.name), find(assign.rhs.name)
+        if keep == drop:
+            continue
+        if keep in ports and drop in ports:
+            _not_yet(f"{what} joining ports '{keep}' and '{drop}'", assign.location)
+        if drop in ports:
+            keep, drop = drop, keep
+        parent[drop] = keep
+
+    return {name: find(name) for name in parent}
 
 
 def _cell_pins(

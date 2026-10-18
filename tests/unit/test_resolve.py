@@ -149,5 +149,45 @@ def test_constructs_without_a_policy_yet_are_rejected(decls, conn, message):
     assert err.location is not None
 
 
+ASSIGN_TOP = """
+module top (a, y, VDD, VSS);
+  input a; output y; inout VDD, VSS;
+  {assigns}
+  INV u1 (.A(a), .Y(n1), .VDD(VDD), .VSS(VSS));
+  INV u2 (.A(n2), .Y(n3), .VDD(VDD), .VSS(VSS));
+endmodule
+"""
+
+
+def test_assign_merges_nets_and_keeps_port_names():
+    # n3 -> y because y is a port; n1/n2 chain keeps the left-hand name n2
+    design = run(ASSIGN_TOP.format(assigns="assign n3 = y; assign n2 = n1;"))
+    assert [i.nets for i in design.modules[0].instances] == [
+        ["a", "n2", "VDD", "VSS"], ["n2", "y", "VDD", "VSS"],
+    ]
+
+
+def test_assign_chains_resolve_transitively():
+    design = run(ASSIGN_TOP.format(assigns="assign n2 = n1; assign y = n9, n9 = n3;"))
+    assert [i.nets for i in design.modules[0].instances] == [
+        ["a", "n2", "VDD", "VSS"], ["n2", "y", "VDD", "VSS"],
+    ]
+
+
+@pytest.mark.parametrize(
+    "assigns, message",
+    [
+        ("assign y = a;", "assign 'y = a' joining ports 'y' and 'a'"),
+        ("assign y = n3, n3 = a;", "assign 'n3 = a' joining ports 'y' and 'a'"),
+        ("assign y = 1'b0;", "assign 'y = 1'b0' with a constant or concatenation"),
+        ("assign y = w[0];", "assign 'y = w[0]' with a bus select"),
+    ],
+)
+def test_assigns_without_a_policy_yet_are_rejected(assigns, message):
+    err = resolve_error(ASSIGN_TOP.format(assigns=assigns))
+    assert err.message == f"{message}: not supported yet"
+    assert err.location.line == 4
+
+
 def test_stub_mode_is_not_available_yet():
     assert "not supported yet" in resolve_error(SUB, on_missing="stub").message

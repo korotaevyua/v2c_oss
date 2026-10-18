@@ -58,6 +58,15 @@ def test_escaped_names_keep_their_spelling():
     assert top.instances[0].connections[0].expr == NetRef(r"\a/b[0]")
 
 
+def test_assign_statements():
+    top = parse_text("module top (y);\n output y;\n   assign y = n[1], n2 = 1'b0;\nendmodule",
+                     "t.v").modules["top"]
+    assert [(a.lhs, a.rhs, str(a.location)) for a in top.assigns] == [
+        (NetRef("y"), NetRef("n", 1, 1), "t.v:3:11"),
+        (NetRef("n2"), Const("1'b0"), "t.v:3:21"),
+    ]
+
+
 def test_modules_keep_source_order():
     design = parse_text("module b; endmodule\nmodule a; endmodule\n")
     assert list(design.modules) == ["b", "a"]
@@ -76,8 +85,7 @@ def test_modules_keep_source_order():
         ("module top (a);\n  input a;\n  input a;\nendmodule", "'a' is already declared input", 3),
         ("module top;\n  wire n;\n  wire n;\nendmodule", "net 'n' is already declared", 3),
         ("module top (a);\n  input a;\n  always @(a);\nendmodule", "'always' is not supported", 3),
-        ("module top (a);\n  input a;\n  assign b = a;\nendmodule",
-         "'assign' statements are not supported yet", 3),
+        ("module top (a);\n  input a;\n  assign b a;\nendmodule", "expected '=', found 'a'", 3),
         ("module a;\nendmodule\nmodule a;\nendmodule", "module 'a' is already defined at", 3),
         ("module a;\nmodule b;\nendmodule", "missing 'endmodule' for module 'a'", 2),
         # H4: truncated mid-instance

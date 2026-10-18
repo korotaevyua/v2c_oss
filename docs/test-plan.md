@@ -87,7 +87,7 @@ Input is a physical netlist, so PG is present; these test that it survives.
 |---|---|---|
 | F1 | `1'b0` / `1'b1` on an instance pin | mapped to the configured constant net |
 | F2 | explicit tie-hi / tie-lo cells | treated as ordinary cells, untouched |
-| F3 | `assign` statement between two nets | net merge or explicit policy |
+| F3 | `assign` statement between two nets | merged into one net; a port keeps its name; two ports on one net rejected |
 | F4 | unconnected output pin `.Y()` | placeholder, unique per instance |
 | F5 | `1'bx` or `1'bz` | rejected with a clear message |
 

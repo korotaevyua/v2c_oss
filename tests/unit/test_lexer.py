@@ -46,7 +46,7 @@ def test_structurally_empty_directives_are_skipped():
 @pytest.mark.parametrize(
     "src, message, line, column",
     [
-        ("module top;\n  x = 1;", "unexpected character '='", 2, 5),
+        ("module top;\n  x ~ 1;", "unexpected character '~'", 2, 5),
         ("a /* never closed", "unterminated block comment", 1, 3),
         ("wire caf\xe9;", "non-ASCII byte 0xe9", 1, 9),
         ("`define W 4", "compiler directive `define is not supported", 1, 1),

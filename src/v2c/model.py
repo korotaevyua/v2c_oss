@@ -99,11 +99,19 @@ class Instance:
 
 
 @dataclass
+class Assign:
+    lhs: Expr
+    rhs: Expr
+    location: Location | None = None
+
+
+@dataclass
 class Module:
     name: str
     ports: list[Port] = field(default_factory=list)  # in port-list order
     nets: dict[str, Net] = field(default_factory=dict)
     instances: list[Instance] = field(default_factory=list)
+    assigns: list[Assign] = field(default_factory=list)
     location: Location | None = None
 
 
