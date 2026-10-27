@@ -1,3 +1,7 @@
+import gzip
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -54,3 +58,28 @@ def test_unreadable_input(files: Path, capsys):
 def test_not_yet_available(files: Path, capsys, argv, message):
     assert main(argv) == 1
     assert capsys.readouterr().err == f"v2c: error: {message}\n"
+
+
+def test_gzipped_netlist_and_library(files: Path):
+    for name in ("d.v", "lib.cdl"):
+        data = (files / name).read_bytes()
+        (files / name).unlink()
+        (files / f"{name}.gz").write_bytes(gzip.compress(data))
+    assert main(["convert", "d.v.gz", "-s", "lib.cdl.gz", "-o", "d.cdl"]) == 0
+    assert "Xu0 a y VDD VSS INV\n" in (files / "d.cdl").read_text()
+
+
+def test_corrupt_gzip_is_a_located_error(files: Path, capsys):
+    (files / "d.v.gz").write_bytes(gzip.compress(NETLIST.encode())[:-12])
+    assert main(["convert", "d.v.gz", "-s", "lib.cdl", "-o", "d.cdl"]) == 1
+    assert capsys.readouterr().err.startswith("v2c: error: d.v.gz:1: corrupt gzip data: ")
+
+
+def test_launcher_script_runs_from_anywhere(files: Path):
+    launcher = Path(__file__).resolve().parents[2] / "v2c"
+    result = subprocess.run(
+        [sys.executable, str(launcher), "convert", "d.v", "-s", "lib.cdl", "-o", "d.cdl"],
+        capture_output=True, text=True, check=False, env={"PATH": os.environ.get("PATH", "")},
+    )
+    assert (result.returncode, result.stderr) == (0, "")
+    assert (files / "d.cdl").exists()

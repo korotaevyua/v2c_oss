@@ -25,6 +25,7 @@ question, answered in resolve.py.
 from __future__ import annotations
 
 from ..errors import Location, ParseError
+from ..files import read_text
 from ..model import (
     Assign,
     Concat,
@@ -55,12 +56,7 @@ _KEYWORDS = {"module", "endmodule", "assign"} | _DIRECTIONS | _NET_KINDS | _OUT_
 
 
 def parse_file(path: str) -> Design:
-    # latin-1 maps every byte to one character, so a stray non-ASCII byte
-    # reaches the lexer and is reported with its location instead of failing
-    # the decode with no location at all.
-    with open(path, encoding="latin-1") as f:
-        text = f.read()
-    return parse_text(text, path)
+    return parse_text(read_text(path), path)
 
 
 def parse_text(text: str, filename: str = "<input>") -> Design:

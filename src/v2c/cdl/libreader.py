@@ -18,6 +18,7 @@ import re
 from collections.abc import Iterable, Iterator
 
 from ..errors import LibraryError, Location
+from ..files import iter_lines
 from ..model import CellLibrary, LibCell
 
 _EQUALS_RE = re.compile(r"\s*=\s*")
@@ -61,8 +62,7 @@ class _Scanner:
             raise LibraryError(f"recursive .INCLUDE of '{path}'", included_at)
         self._open.append(real)
         try:
-            with open(path, encoding="latin-1") as f:
-                self.scan_lines(f, path)
+            self.scan_lines(iter_lines(path), path)
         except OSError as exc:
             if included_at is None:
                 raise

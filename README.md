@@ -25,18 +25,23 @@ out of scope — see [docs/scope.md](docs/scope.md).
 
 ## Running it
 
-Python 3.8 or newer; no dependencies, nothing to install. Point `PYTHONPATH` at
-`src/` of a checkout and run the package with `-m`:
+Python 3.8 or newer (check with `python3 --version`); no dependencies, nothing
+to install. Get the code — `git clone`, or *Code → Download ZIP* on GitHub,
+which unpacks as `v2c_oss-master/` — and run the `v2c` script at its top level:
 
 ```
-git clone https://github.com/korotaevyua/v2c_oss.git
-env PYTHONPATH=/path/to/v2c_oss/src python3 -m v2c convert design.v -s all.cdl -o design.cdl
+python3 /path/to/v2c_oss-master/v2c convert design.v.gz -s all.cdl -o design.cdl
 ```
 
-`env` makes the line work in csh/tcsh as well as in sh/bash. `python3 v2c ...`
-does not work: `v2c` is a package, not a script file. If you can install
-packages, `pip install --user /path/to/v2c_oss` gives a plain `v2c` command
-instead.
+- The netlist and libraries may be gzipped; that is detected from the content,
+  not the name.
+- `-s` is required in practice: it is where pin order comes from (see Usage).
+- If `python3` is older than 3.8, call a newer one by name, e.g. `python3.8`.
+- Equivalent without the script, with the `src/` directory on `PYTHONPATH`
+  (`env` keeps it working in csh/tcsh):
+  `env PYTHONPATH=/path/to/v2c_oss-master/src python3 -m v2c convert ...`
+- If you can install packages, `pip install --user /path/to/v2c_oss-master`
+  gives a plain `v2c` command instead.
 
 On a real post-route netlist today, expect the run to stop at the first bus,
 unconnected pin (`.QN()`) or tie constant (`1'b0`) with a "not supported yet"
