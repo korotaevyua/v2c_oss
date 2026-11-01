@@ -11,7 +11,7 @@ order of the target cell).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Union
+from typing import NamedTuple, Union
 
 from .errors import Location
 
@@ -140,23 +140,34 @@ class CellLibrary:
         return self.cells.get(cell_name)
 
 
-# Resolved IR: what the CDL writer consumes. Names are still Verilog spellings;
-# mapping them to a flavor is the writer's job.
+# Resolved IR: what the CDL writer consumes. Buses are bit-blasted into Bits;
+# names are still Verilog spellings, and mapping them (bus delimiters included)
+# to a flavor is the writer's job.
+
+
+class Bit(NamedTuple):
+    """One scalar net or pin: a plain name, or one bit of a bus."""
+
+    name: str
+    index: int | None = None
+
+    def __str__(self) -> str:
+        return self.name if self.index is None else f"{self.name}[{self.index}]"
 
 
 @dataclass
 class ResolvedInstance:
     name: str
     cell: str
-    nets: list[str]  # positional, in the cell's pin order
+    nets: list[Bit]  # positional, in the cell's pin order
     location: Location | None = None
 
 
 @dataclass
 class ResolvedModule:
     name: str
-    pins: list[str]
-    directions: dict[str, str]  # pin -> "input" | "output" | "inout"
+    pins: list[Bit]
+    directions: dict[str, str]  # port name -> "input" | "output" | "inout"
     instances: list[ResolvedInstance] = field(default_factory=list)
     location: Location | None = None
 

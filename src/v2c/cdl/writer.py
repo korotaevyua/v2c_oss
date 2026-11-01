@@ -7,7 +7,8 @@ One .SUBCKT per module of the resolved design, in source order:
     Xu1 a b y NAND2
     .ENDS top
 
-Instance names get the X prefix that SPICE requires for subcircuit calls.
+Instance names get the X prefix that SPICE requires for subcircuit calls. Bus
+bits use the flavor's delimiters: d[3] is written d<3> for Calibre.
 Library cells are referenced, never copied: libraries given with -s are pulled
 in with .INCLUDE, as v2lvs does, with the path exactly as given. There are no
 timestamps, so two runs on the same input produce the same bytes and can be
@@ -21,7 +22,7 @@ from typing import TextIO
 
 from .. import __version__
 from ..errors import Location, OutputError
-from ..model import ResolvedDesign
+from ..model import Bit, ResolvedDesign
 from .flavors import Flavor
 
 _PININFO = {"input": "I", "output": "O", "inout": "B"}
@@ -51,12 +52,12 @@ def write_cdl(
     for module in design.modules:
         loc = module.location
         name = _name(module.name, loc)
-        pins = [_name(pin, loc) for pin in module.pins]
+        pins = [_bit(pin, flavor, loc) for pin in module.pins]
         out.write("\n")
         _statement(out, [".SUBCKT", name, *pins])
         if flavor.emit_pininfo and pins:
             info = " ".join(
-                f"{cdl}:{_PININFO[module.directions[pin]]}"
+                f"{cdl}:{_PININFO[module.directions[pin.name]]}"
                 for pin, cdl in zip(module.pins, pins)
             )
             out.write(f"*.PININFO {info}\n")
@@ -64,7 +65,7 @@ def write_cdl(
             loc = inst.location
             _statement(
                 out,
-                ["X" + _name(inst.name, loc), *(_name(n, loc) for n in inst.nets),
+                ["X" + _name(inst.name, loc), *(_bit(n, flavor, loc) for n in inst.nets),
                  _name(inst.cell, loc)],
             )
         out.write(f".ENDS {name}\n")
@@ -75,6 +76,13 @@ def _name(name: str, location: Location | None) -> str:
     if name.startswith("\\"):
         raise OutputError(f"escaped identifier '{name}': not supported yet", location)
     return name
+
+
+def _bit(bit: Bit, flavor: Flavor, location: Location | None) -> str:
+    name = _name(bit.name, location)
+    if bit.index is None:
+        return name
+    return f"{name}{flavor.bus_open}{bit.index}{flavor.bus_close}"
 
 
 def _statement(out: TextIO, words: list[str]) -> None:

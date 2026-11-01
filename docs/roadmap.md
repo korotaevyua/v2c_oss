@@ -23,13 +23,13 @@ Done when a small design converts and Calibre accepts the result.
 
 The parser accepts the whole P&R subset; constructs that still need a policy
 are rejected by the resolver or writer with a located "not supported yet"
-error, never passed through: buses, escaped identifiers, constants,
-concatenations, `supply0`/`supply1`, unconnected pins, `--on-missing=stub`,
+error, never passed through: escaped identifiers, constants,
+`supply0`/`supply1`, unconnected pins, `--on-missing=stub`,
 and every flavor but `calibre`.
 
 ## M2 — the things that break first
 
-- escaped identifiers and bus handling (C group)
+- escaped identifiers (C1, C2, C6–C8); bus handling C3–C5 landed early
 - unconnected pins and constants (B2, F1, F4, F5), supply declarations (D2)
 - missing cells: error and stub modes (B5–B8, G group)
 - physical-only cells (E group)

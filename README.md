@@ -3,10 +3,11 @@
 An open-source converter from a **physical (post-route) Verilog netlist** to
 **CDL**, for use as a standalone step in a staged LVS flow.
 
-> Status: **M1 — walking skeleton.** Flat and hierarchical netlists of scalar
-> nets convert to Calibre CDL, with pin order taken from the library. Buses,
-> escaped identifiers, constants, `supply0`/`supply1` and unconnected pins are
-> rejected with a located "not supported yet" error for now. See
+> Status: **M1 — walking skeleton, plus buses and `assign`.** Flat and
+> hierarchical netlists convert to Calibre CDL, with pin order taken from the
+> library; buses are bit-blasted (`d[3]` becomes `d<3>`). Escaped identifiers,
+> constants, `supply0`/`supply1` and unconnected pins are rejected with a
+> located "not supported yet" error for now. See
 > [docs/roadmap.md](docs/roadmap.md).
 
 ## What it is for
@@ -43,10 +44,10 @@ python3 /path/to/v2c_oss-master/v2c convert design.v.gz -s all.cdl -o design.cdl
 - If you can install packages, `pip install --user /path/to/v2c_oss-master`
   gives a plain `v2c` command instead.
 
-On a real post-route netlist today, expect the run to stop at the first bus,
-unconnected pin (`.QN()`) or tie constant (`1'b0`) with a "not supported yet"
-error and its `file:line:column`: those arrive in M2. Nothing is written in
-that case, so it is safe to try.
+On a real post-route netlist today, expect the run to stop at the first escaped
+name (`\u_core/q_reg`), unconnected pin (`.QN()`) or tie constant (`1'b0`) with
+a "not supported yet" error and its `file:line:column`: those arrive in M2.
+Nothing is written in that case, so it is safe to try.
 
 ## Usage
 
@@ -73,6 +74,12 @@ CDL is not optional: it is where the pin order comes from.
 
   `v2c convert design.v -s all.cdl -o design.cdl` then reads both, and the
   output contains just `.INCLUDE "all.cdl"`.
+
+Buses are bit-blasted: a bus port becomes one `.SUBCKT` pin per bit, in the
+order its range is written, and `d[3]` is written `d<3>`. A library bus pin is
+recognized by its spelling in the `.SUBCKT` header, `A<1> A<0>` or `A[1] A[0]`,
+and read as `A[1:0]`: a Verilog connection to `A` fills it from the highest
+index down.
 
 Libraries are searched in command-line order; the first that defines a cell
 wins. Within one library (a file and everything it includes), a cell defined

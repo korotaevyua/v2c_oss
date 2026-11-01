@@ -8,29 +8,40 @@ A cell is either a module of the netlist itself (pin order = its port list) or
 a library cell (pin order = its .SUBCKT header). A name that is both is an
 error: emitting it would redefine the library cell.
 
-The parser accepts the whole P&R subset; this stage converts scalar nets with
-every pin connected. Buses, constants, concatenations, supply declarations and
-unconnected pins are reported as not supported yet, with their location, until
-the milestones that give them a policy (docs/roadmap.md). Nets used without a
-declaration are implicit wires, as in Verilog.
+Buses are bit-blasted (docs/test-plan.md, C3-C5): a bus port becomes one pin
+per bit, in the order its range is written, and every connection expression
+(bus, bit or part select, concatenation) becomes the bits it denotes, most
+significant first. Widths must match. A library bus pin, spelled A<1> A<0> or
+A[1] A[0] in the .SUBCKT header, is connected through Verilog pin A, highest
+index first.
 
-`assign a = b;` between scalar nets makes them one net (docs/test-plan.md, F3).
-The merged net takes the port's name if one of them is a port, otherwise the
-left-hand side's. Two ports on one net cannot be written as a .SUBCKT pin list,
-so that case is not supported yet.
+`assign a = b;` merges nets bit by bit (F3). The merged net takes the port's
+name if one side is a port, otherwise the left-hand side's. Two ports on one
+net cannot be written as a .SUBCKT pin list, so that is not supported yet.
+
+Constants, supply declarations and unconnected pins are reported as not
+supported yet, with their location, until they get a policy
+(docs/roadmap.md). Nets used without a declaration are implicit wires, as in
+Verilog.
 """
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from typing import NoReturn
 
 from .errors import Location, ResolveError
 from .model import (
+    Bit,
     CellLibrary,
+    Concat,
+    Const,
     Design,
+    Expr,
     Instance,
     Module,
-    NetRef,
+    Port,
     ResolvedDesign,
     ResolvedInstance,
     ResolvedModule,
@@ -53,6 +64,7 @@ def resolve(
 
     resolved = ResolvedDesign(top_name)
     missing: dict[str, Location | None] = {}
+    interfaces: dict[str, _Interface | None] = {}
     for module in design.modules.values():
         if module.name not in used:
             continue
@@ -62,7 +74,9 @@ def resolve(
                 f"module '{module.name}' is also a library cell (defined at {cell.location})",
                 module.location,
             )
-        resolved.modules.append(_resolve_module(module, design, library, missing))
+        resolved.modules.append(
+            _resolve_module(module, design, library, interfaces, missing)
+        )
 
     if missing:
         raise ResolveError(_missing_message(missing, library))
@@ -113,115 +127,199 @@ def _reachable(design: Design, top: str) -> set[str]:
     return done
 
 
+@dataclass
+class _Interface:
+    """A cell as instances see it: Verilog pin name -> positions in the CDL pin
+    list, most significant bit first."""
+
+    width: int
+    pins: dict[str, list[int]]
+    labels: list[str]  # per position, for messages
+    defined_at: Location | None
+
+
 def _resolve_module(
     module: Module,
     design: Design,
     library: CellLibrary,
+    interfaces: dict[str, _Interface | None],
     missing: dict[str, Location | None],
 ) -> ResolvedModule:
-    for port in module.ports:
-        if port.is_bus:
-            _not_yet(f"bus port '{port.name}[{port.msb}:{port.lsb}]'", port.location)
     for net in module.nets.values():
-        if net.is_bus:
-            _not_yet(f"bus net '{net.name}[{net.msb}:{net.lsb}]'", net.location)
         if net.is_supply:
             _not_yet(f"supply{net.supply_value} net '{net.name}'", net.location)
 
-    merged = _merge_assigns(module)
+    buses = _buses(module)
+    merged = _merge_assigns(module, buses)
     resolved = ResolvedModule(
         module.name,
-        pins=[p.name for p in module.ports],
+        pins=[bit for port in module.ports for bit in _port_bits(port)],
         directions={p.name: p.direction for p in module.ports},
         location=module.location,
     )
     for inst in module.instances:
-        pins, defined_at = _cell_pins(inst.cell, design, library)
-        if pins is None:
+        if inst.cell not in interfaces:
+            interfaces[inst.cell] = _interface(inst.cell, design, library)
+        interface = interfaces[inst.cell]
+        if interface is None:
             missing.setdefault(inst.cell, inst.location)
             continue
-        nets = [merged.get(net, net) for net in _order_connections(inst, pins, defined_at)]
+        nets = [merged.get(bit, bit) for bit in _order_connections(inst, interface, buses)]
         resolved.instances.append(ResolvedInstance(inst.name, inst.cell, nets, inst.location))
     return resolved
 
 
-def _merge_assigns(module: Module) -> dict[str, str]:
-    """Net name -> the name of the net it was merged into by assign statements."""
-    ports = {p.name for p in module.ports}
-    parent: dict[str, str] = {}
+def _buses(module: Module) -> dict[str, tuple[int, int]]:
+    """Declared buses of a module, name -> (msb, lsb) as written."""
+    buses = {n.name: (n.msb, n.lsb) for n in module.nets.values() if n.is_bus}
+    buses.update({p.name: (p.msb, p.lsb) for p in module.ports if p.is_bus})
+    return buses
 
-    def find(name: str) -> str:
-        while name in parent:
-            name = parent[name]
-        return name
+
+def _span(left: int, right: int) -> range:
+    """Indices from left to right inclusive, in the direction written."""
+    return range(left, right + 1) if left <= right else range(left, right - 1, -1)
+
+
+def _port_bits(port: Port) -> list[Bit]:
+    if not port.is_bus:
+        return [Bit(port.name)]
+    return [Bit(port.name, i) for i in _span(port.msb, port.lsb)]
+
+
+def _bits(expr: Expr, buses: dict[str, tuple[int, int]], location: Location | None) -> list[Bit]:
+    """An expression as the bits it denotes, most significant first."""
+    if isinstance(expr, Concat):
+        return [bit for part in expr.parts for bit in _bits(part, buses, location)]
+    if isinstance(expr, Const):
+        _not_yet(f"constant '{expr}'", location)
+    declared = buses.get(expr.name)
+    if expr.msb is None:
+        if declared is None:
+            return [Bit(expr.name)]
+        return [Bit(expr.name, i) for i in _span(*declared)]
+    if declared is None:
+        raise ResolveError(f"'{expr}' selects bits of '{expr.name}', which is not a bus", location)
+    valid = _span(*declared)
+    for index in (expr.msb, expr.lsb):
+        if index not in valid:
+            raise ResolveError(
+                f"'{expr}' is outside '{expr.name}[{declared[0]}:{declared[1]}]'", location
+            )
+    return [Bit(expr.name, i) for i in _span(expr.msb, expr.lsb)]
+
+
+def _merge_assigns(module: Module, buses: dict[str, tuple[int, int]]) -> dict[Bit, Bit]:
+    """Bit -> the bit it was merged into by assign statements."""
+    ports = {bit for port in module.ports for bit in _port_bits(port)}
+    parent: dict[Bit, Bit] = {}
+
+    def find(bit: Bit) -> Bit:
+        while bit in parent:
+            bit = parent[bit]
+        return bit
 
     for assign in module.assigns:
         what = f"assign '{assign.lhs} = {assign.rhs}'"
-        for side in (assign.lhs, assign.rhs):
-            if not isinstance(side, NetRef):
-                _not_yet(f"{what} with a constant or concatenation", assign.location)
-            if side.msb is not None:
-                _not_yet(f"{what} with a bus select", assign.location)
-        keep, drop = find(assign.lhs.name), find(assign.rhs.name)
-        if keep == drop:
-            continue
-        if keep in ports and drop in ports:
-            _not_yet(f"{what} joining ports '{keep}' and '{drop}'", assign.location)
-        if drop in ports:
-            keep, drop = drop, keep
-        parent[drop] = keep
+        if isinstance(assign.lhs, Const) or isinstance(assign.rhs, Const):
+            _not_yet(f"{what} with a constant", assign.location)
+        lhs = _bits(assign.lhs, buses, assign.location)
+        rhs = _bits(assign.rhs, buses, assign.location)
+        if len(lhs) != len(rhs):
+            raise ResolveError(
+                f"{what}: left side is {len(lhs)} bits wide, right side {len(rhs)}",
+                assign.location,
+            )
+        for left, right in zip(lhs, rhs):
+            keep, drop = find(left), find(right)
+            if keep == drop:
+                continue
+            if keep in ports and drop in ports:
+                _not_yet(f"{what} joining ports '{keep}' and '{drop}'", assign.location)
+            if drop in ports:
+                keep, drop = drop, keep
+            parent[drop] = keep
 
-    return {name: find(name) for name in parent}
+    return {bit: find(bit) for bit in parent}
 
 
-def _cell_pins(
-    cell: str, design: Design, library: CellLibrary
-) -> tuple[list[str] | None, Location | None]:
+_LIB_BUS_PIN_RE = re.compile(r"^(.+?)[<\[](\d+)[>\]]$")
+
+
+def _interface(cell: str, design: Design, library: CellLibrary) -> _Interface | None:
     module = design.modules.get(cell)
     if module is not None:
-        return [p.name for p in module.ports], module.location
+        pins: dict[str, list[int]] = {}
+        labels: list[str] = []
+        for port in module.ports:
+            bits = _port_bits(port)
+            pins[port.name] = list(range(len(labels), len(labels) + len(bits)))
+            labels += [str(bit) for bit in bits]
+        return _Interface(len(labels), pins, labels, module.location)
+
     lib_cell = library.get(cell)
-    if lib_cell is not None:
-        return lib_cell.pins, lib_cell.location
-    return None, None
+    if lib_cell is None:
+        return None
+    # Library bus pins are spelled A<1> A<0> or A[1] A[0]; a Verilog connection
+    # to A covers them all, most significant index first.
+    pins = {}
+    bus_bits: dict[str, list[tuple[int, int]]] = {}
+    for position, pin in enumerate(lib_cell.pins):
+        m = _LIB_BUS_PIN_RE.match(pin)
+        if m:
+            bus_bits.setdefault(m.group(1), []).append((int(m.group(2)), position))
+        else:
+            pins[pin] = [position]
+    for base, bits in bus_bits.items():
+        if base not in pins:
+            pins[base] = [position for _, position in sorted(bits, reverse=True)]
+    return _Interface(len(lib_cell.pins), pins, list(lib_cell.pins), lib_cell.location)
 
 
 def _order_connections(
-    inst: Instance, pins: list[str], defined_at: Location | None
-) -> list[str]:
+    inst: Instance, interface: _Interface, buses: dict[str, tuple[int, int]]
+) -> list[Bit]:
     """The heart of it: named connections, reordered into the cell's pin order."""
-    by_pin: dict[str, str] = {}
-    known = set(pins)
+    slots: list[Bit | None] = [None] * interface.width
+    seen: set[str] = set()
     for conn in inst.connections:
-        if conn.pin in by_pin:
+        if conn.pin in seen:
             raise ResolveError(
                 f"pin '{conn.pin}' of instance '{inst.name}' is connected twice",
                 conn.location,
             )
-        if conn.pin not in known:
+        seen.add(conn.pin)
+        positions = interface.pins.get(conn.pin)
+        if positions is None:
             raise ResolveError(
                 f"cell '{inst.cell}' has no pin '{conn.pin}' "
-                f"(instance '{inst.name}'; cell defined at {defined_at})",
+                f"(instance '{inst.name}'; cell defined at {interface.defined_at})",
                 conn.location,
             )
-        expr = conn.expr
-        if expr is None:
+        if conn.expr is None:
             _not_yet(f"unconnected pin '.{conn.pin}()'", conn.location)
-        if not isinstance(expr, NetRef):
-            _not_yet(f"connecting '{expr}' to pin '{conn.pin}'", conn.location)
-        if expr.msb is not None:
-            _not_yet(f"bus select '{expr}' on pin '{conn.pin}'", conn.location)
-        by_pin[conn.pin] = expr.name
+        if isinstance(conn.expr, Const):
+            _not_yet(f"connecting '{conn.expr}' to pin '{conn.pin}'", conn.location)
+        bits = _bits(conn.expr, buses, conn.location)
+        if len(bits) != len(positions):
+            raise ResolveError(
+                f"pin '{conn.pin}' of cell '{inst.cell}' is {len(positions)} "
+                f"{_plural(len(positions), 'bit')} wide, but '{conn.expr}' is {len(bits)} "
+                f"(instance '{inst.name}')",
+                conn.location,
+            )
+        for position, bit in zip(positions, bits):
+            slots[position] = bit
 
-    left_open = [pin for pin in pins if pin not in by_pin]
+    left_open = [interface.labels[i] for i, bit in enumerate(slots) if bit is None]
     if left_open:
         raise ResolveError(
             f"instance '{inst.name}' of '{inst.cell}' does not connect "
             f"{_plural(len(left_open), 'pin')} {', '.join(left_open)} "
-            f"(cell defined at {defined_at})",
+            f"(cell defined at {interface.defined_at})",
             inst.location,
         )
-    return [by_pin[pin] for pin in pins]
+    return slots  # type: ignore[return-value]  # every slot is filled
 
 
 def _missing_message(missing: dict[str, Location | None], library: CellLibrary) -> str:
