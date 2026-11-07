@@ -1,10 +1,11 @@
 # Test plan
 
-Three layers, in order of how often they run:
+Four layers, in order of how often they run:
 
 1. **Unit** — parser, library reader, resolver, writer, in isolation. Fast.
 2. **Golden** — small synthetic netlist + small library in, expected CDL out,
-   byte-compared after normalization. This is the main regression net.
+   compared after normalization (see `tests/golden/README.md`). This is the
+   main regression net.
 3. **Differential** — real netlists through both this tool and a reference
    converter, normalized and diffed. Runs only where the reference tool exists.
 4. **Consumer** — output fed to netgen / KLayout, checked for parse and content.
@@ -153,8 +154,8 @@ findings reach the public suite.
 
 ---
 
-## Bootstrapping order
+## Coverage today
 
-Not all at once. A useful first pass is A1–A4, B1, B5, B6, C3, D1, E1, H4 —
-that is enough to convert a trivial but real design and to fail comprehensibly
-on the things that actually break first.
+Golden cases: A1–A4, B1, B9, B10, C3–C5, F3. Unit tests cover B3, B5, B7, B8
+and H3–H7. Differential, consumer and scale tests do not exist yet; see
+`docs/roadmap.md` for what is next.

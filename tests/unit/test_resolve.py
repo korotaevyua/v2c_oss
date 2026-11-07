@@ -101,7 +101,20 @@ endmodule
         "2 cells not found in the netlist or any library:",
         "  t.v:4:3: FOO",
         "  t.v:5:3: BAR",
+        ("The netlist defines 1 module (top). If missing modules are in other Verilog "
+         "files, give those files too: v2c convert top.v block.v ..."),
     ]
+
+
+def test_missing_cell_with_a_near_match_says_so():
+    err = resolve_error("module Core; endmodule\nmodule top; core u (); endmodule", top="top")
+    assert "  t.v:2:13: core (did you mean 'Core'?)" in err.message.splitlines()
+
+
+def test_escaped_and_plain_spellings_are_one_module():
+    design = run("module \\blk (a); input a; endmodule\n"
+                 "module top (a); input a; blk u (.a(a)); endmodule")
+    assert [m.name for m in design.modules] == ["blk", "top"]
 
 
 def test_missing_cells_hint_when_no_library_was_given():

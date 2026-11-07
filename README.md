@@ -3,12 +3,13 @@
 An open-source converter from a **physical (post-route) Verilog netlist** to
 **CDL**, for use as a standalone step in a staged LVS flow.
 
-> Status: **M1 — walking skeleton, plus buses and `assign`.** Flat and
-> hierarchical netlists convert to Calibre CDL, with pin order taken from the
-> library; buses are bit-blasted (`d[3]` becomes `d<3>`). Escaped identifiers,
-> constants, `supply0`/`supply1` and unconnected pins are rejected with a
-> located "not supported yet" error for now. See
-> [docs/roadmap.md](docs/roadmap.md).
+> Status: **M1 complete in code, M2 in progress.** Flat and hierarchical
+> netlists convert to Calibre CDL, with pin order taken from the library, buses
+> bit-blasted and `assign` merged. Not yet: escaped names such as
+> `\u_core/q_reg`, constants (`1'b0`), unconnected pins (`.QN()`) and
+> `supply0`/`supply1` — each stops the run with a located "not supported yet"
+> error. M1's acceptance check, Calibre reading the output of a real design, is
+> still open. Details in [docs/roadmap.md](docs/roadmap.md).
 
 ## What it is for
 
@@ -44,16 +45,20 @@ python3 /path/to/v2c_oss-master/v2c convert design.v.gz -s all.cdl -o design.cdl
 - If you can install packages, `pip install --user /path/to/v2c_oss-master`
   gives a plain `v2c` command instead.
 
-On a real post-route netlist today, expect the run to stop at the first escaped
-name (`\u_core/q_reg`), unconnected pin (`.QN()`) or tie constant (`1'b0`) with
-a "not supported yet" error and its `file:line:column`: those arrive in M2.
-Nothing is written in that case, so it is safe to try.
+On a real post-route netlist, the run may still stop at one of the constructs
+listed under Status, with its `file:line:column`. Nothing is written in that
+case, so it is safe to try.
 
 ## Usage
 
 ```
 v2c convert design.v -s stdcells.cdl -s macros.cdl -o design.cdl
+v2c convert top.v.gz block1.v.gz block2.v.gz -s all.cdl -o top.cdl
 ```
+
+When the hierarchy is split across files — a top level and its blocks — give
+all of them; they are read as one design, and a module defined twice is an
+error.
 
 Verilog connections are named, CDL connections are positional, so the library
 CDL is not optional: it is where the pin order comes from.
@@ -89,8 +94,9 @@ The top module is inferred when exactly one module is not instantiated by any
 other; otherwise name it with `--top`. On any error nothing is written, and the
 message carries `file:line:column`.
 
-Output flavors (`--flavor calibre|netgen|klayout`) cover the lexical
-differences between consumers — bus delimiters, escaping, `*.PININFO`.
+Only the Calibre flavor is enabled for now (`--flavor calibre`, the default);
+netgen and KLayout follow in M3. Their differences are in
+[docs/flavors.md](docs/flavors.md).
 
 ## Documentation
 

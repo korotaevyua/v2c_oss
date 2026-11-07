@@ -2,7 +2,7 @@ import pytest
 
 from v2c.errors import ParseError
 from v2c.model import Concat, Const, NetRef
-from v2c.verilog.parser import parse_text
+from v2c.verilog.parser import parse_files, parse_text
 
 NETLIST = """
 module top (y, a, VDD, VSS);
@@ -65,6 +65,19 @@ def test_assign_statements():
         (NetRef("y"), NetRef("n", 1, 1), "t.v:3:11"),
         (NetRef("n2"), Const("1'b0"), "t.v:3:21"),
     ]
+
+
+def test_several_files_make_one_design(tmp_path):
+    (tmp_path / "top.v").write_text("module top; blk u (); endmodule\n")
+    (tmp_path / "blk.v").write_text("module blk; endmodule\n")
+    design = parse_files([str(tmp_path / "top.v"), str(tmp_path / "blk.v")])
+    assert list(design.modules) == ["top", "blk"]
+
+    (tmp_path / "again.v").write_text("\nmodule blk; endmodule\n")
+    with pytest.raises(ParseError) as exc:
+        parse_files([str(tmp_path / "blk.v"), str(tmp_path / "again.v")])
+    assert exc.value.message == f"module 'blk' is already defined at {tmp_path / 'blk.v'}:1:8"
+    assert exc.value.location.line == 2
 
 
 def test_modules_keep_source_order():

@@ -3,7 +3,8 @@
 ## Pipeline
 
 ```
-  physical .v            library .cdl / .sp
+  physical .v (.gz),     library .cdl / .sp (.gz),
+  one or more files      following .INCLUDE
        |                        |
        v                        v
   [verilog.parser]        [cdl.libreader]
@@ -15,8 +16,8 @@
                    |
                    v
              [resolve]                  pin-order resolution,
-                   |                    stub synthesis,
-                   |  Resolved IR       physical-cell policy
+                   |                    bit-blasting, assign merging
+                   |  Resolved IR       (planned: stubs, physical cells)
                    v
              [cdl.writer] <--- [cdl.flavors]  (calibre | netgen | klayout)
                    |
@@ -55,8 +56,8 @@ XU_G1 n3 n7 n9 VDD VSS NAND2X1
 ```
 
 So the converter cannot work from the Verilog alone. It must read the library
-CDL, extract each cell's `.SUBCKT` pin order, and reorder accordingly. This is
-what `v2lvs -s` does and there is no way around it.
+CDL, extract each cell's `.SUBCKT` pin order, and reorder accordingly. v2lvs
+does the same with `-lsp`/`-lsr`, and there is no way around it.
 
 `cdl.libreader` therefore scans `.SUBCKT` headers only — it does not parse
 device statements or build a circuit model. It needs the cell name, the ordered
@@ -66,13 +67,15 @@ followed, so one file listing every library CDL can stand for all of them.
 
 ## Missing cells
 
-A cell instantiated in the netlist but absent from every supplied library is a
-hard decision point, not a warning to bury:
+A cell instantiated in the netlist but absent from the netlist's own modules
+and from every supplied library is a hard decision point, not a warning to
+bury:
 
-- `--on-missing=error` (default): fail, list every missing cell at once.
-- `--on-missing=stub`: synthesize a `.SUBCKT` from the instance's own
-  connection list, emit `*.PININFO` with directions inferred where possible,
-  and record it in the run report.
+- `--on-missing=error` (default): fail, list every missing cell at once with
+  its first use, and point out near matches (same name in another case).
+- `--on-missing=stub` (planned, M2): synthesize a `.SUBCKT` from the
+  instance's own connection list, emit `*.PININFO` with directions inferred
+  where possible, and record it in the run report.
 
 Stub pin order is then whatever the first instance used, which is arbitrary but
 self-consistent — acceptable only because the same tool writes both sides.
@@ -80,9 +83,14 @@ self-consistent — acceptable only because the same tool writes both sides.
 ## Intermediate representation
 
 Deliberately dumb: a `Design` holding `Module`s, each with ordered `Port`s,
-`Net`s and `Instance`s. Nets carry their original Verilog spelling plus a
-normalized key. No graph analysis, no connectivity solving — the netlist is
-already fully elaborated.
+`Net`s, `Instance`s and `assign`s. Names keep their Verilog spelling, except
+that an escaped name spelled like a plain identifier (`\n1 `) becomes that
+identifier, as Verilog defines it. No graph analysis, no connectivity solving —
+the netlist is already fully elaborated.
+
+The resolver turns this into the Resolved IR: per module, pins and instance
+connections as positional lists of `Bit`s (a scalar name, or one bit of a
+bus). Mapping a `Bit` to text — `d<3>` for Calibre — is the writer's job.
 
 ## Flavors
 
@@ -93,6 +101,6 @@ parser. See `flavors.md`.
 
 ## Diagnostics
 
-Every error carries file, line and column. A conversion that dies on line
-812,401 of a million-instance netlist with "unexpected token" and no location is
-useless, and that is the failure mode this tool exists to avoid.
+Every error about the input carries file, line and column. A conversion that
+dies on line 812,401 of a million-instance netlist with "unexpected token" and
+no location is useless, and that is the failure mode this tool exists to avoid.

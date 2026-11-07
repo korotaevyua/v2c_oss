@@ -6,6 +6,11 @@ cause silent mismatches rather than loud errors.
 
 Flavors are data, not code paths. Adding one should mean adding a table entry.
 
+Status: only `calibre` is enabled; the others are accepted by the table but
+rejected on the command line until their output is validated by the tools
+(M3). Escaped names are not rewritten yet (M2), except that one spelled like a
+plain identifier is that identifier.
+
 | Concern | `calibre` | `netgen` | `klayout` |
 |---|---|---|---|
 | Bus delimiter | `<>` | `[]` | `[]` |

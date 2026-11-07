@@ -55,12 +55,23 @@ _OUT_OF_SCOPE = {
 _KEYWORDS = {"module", "endmodule", "assign"} | _DIRECTIONS | _NET_KINDS | _OUT_OF_SCOPE
 
 
+def parse_files(paths: list[str]) -> Design:
+    """One design from several files, e.g. a top level and its block netlists.
+    A module defined in two files is an error, as within one file."""
+    design = Design()
+    for path in paths:
+        parse_text(read_text(path), path, design)
+    return design
+
+
 def parse_file(path: str) -> Design:
-    return parse_text(read_text(path), path)
+    return parse_files([path])
 
 
-def parse_text(text: str, filename: str = "<input>") -> Design:
-    return _Parser(text, filename).parse()
+def parse_text(text: str, filename: str = "<input>", design: Design | None = None) -> Design:
+    design = design if design is not None else Design()
+    _Parser(text, filename).parse(design)
+    return design
 
 
 class _Parser:
@@ -110,8 +121,7 @@ class _Parser:
 
     # --- grammar ---------------------------------------------------------
 
-    def parse(self) -> Design:
-        design = Design()
+    def parse(self, design: Design) -> None:
         while self._tok.kind != "eof":
             if not self._at_keyword("module"):
                 raise self._error(f"expected 'module', found {self._found()}")
@@ -123,7 +133,6 @@ class _Parser:
                     module.location,
                 )
             design.modules[module.name] = module
-        return design
 
     def _module(self) -> Module:
         self._advance()  # 'module'

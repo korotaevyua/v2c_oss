@@ -79,7 +79,7 @@ def resolve(
         )
 
     if missing:
-        raise ResolveError(_missing_message(missing, library))
+        raise ResolveError(_missing_message(missing, library, design))
     return resolved
 
 
@@ -322,11 +322,27 @@ def _order_connections(
     return slots  # type: ignore[return-value]  # every slot is filled
 
 
-def _missing_message(missing: dict[str, Location | None], library: CellLibrary) -> str:
+def _missing_message(
+    missing: dict[str, Location | None], library: CellLibrary, design: Design
+) -> str:
     count = len(missing)
     hint = "" if library.cells else " (no library was given with -s)"
     lines = [f"{count} {_plural(count, 'cell')} not found in the netlist or any library{hint}:"]
-    lines += [f"  {location}: {cell}" for cell, location in missing.items()]
+    by_folded: dict[str, list[str]] = {}
+    for name in list(design.modules) + list(library.cells):
+        by_folded.setdefault(name.lstrip("\\").lower(), []).append(name)
+    for cell, location in missing.items():
+        near = by_folded.get(cell.lstrip("\\").lower())
+        also = f" (did you mean {' or '.join(repr(n) for n in near)}?)" if near else ""
+        lines.append(f"  {location}: {cell}{also}")
+
+    modules = list(design.modules)
+    shown = ", ".join(modules[:5]) + (", ..." if len(modules) > 5 else "")
+    lines.append(
+        f"The netlist defines {len(modules)} {_plural(len(modules), 'module')} ({shown}). "
+        f"If missing modules are in other Verilog files, give those files too: "
+        f"v2c convert top.v block.v ..."
+    )
     return "\n".join(lines)
 
 

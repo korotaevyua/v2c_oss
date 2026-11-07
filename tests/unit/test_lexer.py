@@ -26,6 +26,12 @@ def test_escaped_identifier_keeps_its_spelling_and_ends_at_whitespace():
     ]
 
 
+def test_escaped_name_spelled_like_an_identifier_is_that_identifier():
+    assert lex(r"\CP \n_1$x  \if \module ") == [
+        ("id", "CP"), ("id", "n_1$x"), ("id", r"\if"), ("id", r"\module"),
+    ]
+
+
 def test_comments_are_dropped_and_locations_survive_them():
     src = "// header\nmodule /* a\nb */ top ;\n"
     assert [(t.text, t.line, t.column) for t in tokenize(src)] == [

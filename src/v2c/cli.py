@@ -1,6 +1,7 @@
 """Command line interface.
 
     v2c convert design.v -s stdcells.cdl -s macros.cdl -o design.cdl
+    v2c convert top.v block1.v block2.v -s all.cdl -o top.cdl
     v2c normalize a.cdl
 """
 
@@ -16,7 +17,7 @@ from .cdl.libreader import read_library
 from .cdl.writer import write_cdl
 from .errors import V2CError
 from .resolve import resolve
-from .verilog.parser import parse_file
+from .verilog.parser import parse_files
 
 # Flavors whose output has been checked against the consuming tool.
 _SUPPORTED_FLAVORS = {"calibre"}
@@ -32,7 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
 
     conv = sub.add_parser("convert", help="physical Verilog netlist -> CDL")
-    conv.add_argument("netlist", help="physical (post-route) Verilog netlist")
+    conv.add_argument("netlists", nargs="+", metavar="netlist",
+                      help="physical (post-route) Verilog netlist; give several when the "
+                           "hierarchy is split across files (top level and blocks)")
     # -s and -lsp share one list, so libraries are searched in command-line order.
     conv.add_argument("-s", "--spice", dest="libraries", action="append", default=[],
                       type=lambda path: Library(path, include=True), metavar="FILE",
@@ -76,7 +79,7 @@ def convert(args: argparse.Namespace) -> None:
         raise V2CError(f"flavor '{args.flavor}' is not supported yet")
     flavor = FLAVORS[args.flavor]
 
-    design = parse_file(args.netlist)
+    design = parse_files(args.netlists)
     library = read_library([lib.path for lib in args.libraries])
     resolved = resolve(design, library, top=args.top, on_missing=args.on_missing)
     includes = [lib.path for lib in args.libraries if lib.include]
@@ -86,7 +89,7 @@ def convert(args: argparse.Namespace) -> None:
     tmp = f"{args.output}.tmp"
     try:
         with open(tmp, "w", encoding="utf-8", newline="\n") as out:
-            write_cdl(resolved, flavor, out, source=args.netlist, includes=includes)
+            write_cdl(resolved, flavor, out, source=", ".join(args.netlists), includes=includes)
         os.replace(tmp, args.output)
     finally:
         if os.path.exists(tmp):
