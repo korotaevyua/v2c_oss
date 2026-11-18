@@ -156,6 +156,6 @@ findings reach the public suite.
 
 ## Coverage today
 
-Golden cases: A1–A4, B1, B9, B10, C3–C5, F3. Unit tests cover B3, B5, B7, B8
+Golden cases: A1–A4, B1, B9, B10, C3–C5, D1, F2 (inside D1), F3. Unit tests cover B3, B5, B7, B8
 and H3–H7. Differential, consumer and scale tests do not exist yet; see
 `docs/roadmap.md` for what is next.

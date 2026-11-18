@@ -1,0 +1,21 @@
+* Synthetic cell library for golden tests. Not from any PDK.
+* Cells with separate well pins: VNW (n-well) and VPW (p-well).
+
+.SUBCKT BUFX A Z VDD VNW VPW VSS
+*.PININFO A:I Z:O VDD:P VNW:P VPW:G VSS:G
+MP0 n0 A VDD VNW pch W=1.0u L=0.1u
+MN0 n0 A VSS VPW nch W=0.5u L=0.1u
+MP1 Z n0 VDD VNW pch W=2.0u L=0.1u
+MN1 Z n0 VSS VPW nch W=1.0u L=0.1u
+.ENDS BUFX
+
+.SUBCKT TIELO Z VDD VNW VPW VSS
+*.PININFO Z:O VDD:P VNW:P VPW:G VSS:G
+MP0 n0 n0 VDD VNW pch W=0.5u L=0.1u
+MN0 Z n0 VSS VPW nch W=0.5u L=0.1u
+.ENDS TIELO
+
+.SUBCKT CKGATE CK E TE Q VDD VNW VPW VSS
+*.PININFO CK:I E:I TE:I Q:O VDD:P VNW:P VPW:G VSS:G
+* Body omitted: the converter reads headers only.
+.ENDS CKGATE
